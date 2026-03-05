@@ -2,7 +2,7 @@
 
 **Projet Day 2 — Building Agentic Systems with MCP (PGE3)**
 
-Serveur MCP Python qui permet à un agent IA (Claude, Gemini) d'interroger une base de données SQLite en langage naturel via 3 outils.
+Serveur MCP Python qui permet à un agent IA (Claude, Gemini) d'interroger une base de données SQLite contenant le **S&P/Case-Shiller U.S. National Home Price Index** — des données time series sur l'évolution des prix immobiliers américains depuis 1975.
 
 ## Concepts du cours appliqués
 
@@ -19,11 +19,24 @@ Serveur MCP Python qui permet à un agent IA (Claude, Gemini) d'interroger une b
 
 ```
 data-query-builder/
-├── server.py          # Serveur MCP avec 3 outils + 1 ressource
-├── create_db.py       # Script de création de la base de démo
-├── demo.db            # Base SQLite (e-commerce : clients, produits, commandes)
+├── server.py                        # Serveur MCP avec 3 outils + 1 ressource
+├── create_db.py                     # Script de création de la base (télécharge les CSV)
+├── housing.db                       # Base SQLite (Case-Shiller House Price Index)
+├── test_server.py                   # Tests unitaires (15 tests)
+├── claude_desktop_config_example.json
 └── README.md
 ```
+
+## La base de données
+
+**Source** : S&P/Case-Shiller U.S. National Home Price Index (via [datasets/house-prices-us](https://github.com/datasets/house-prices-us))
+
+| Table            | Lignes | Description                                              |
+|------------------|--------|----------------------------------------------------------|
+| `cities`         | 20     | Les 20 métropoles du Case-Shiller Index (nom, état)      |
+| `national_index` | 595    | Indice national mensuel depuis 1975 (avec variation YoY) |
+| `city_prices`    | 5 756  | Indice mensuel par ville depuis 1987                     |
+| `market_events`  | 14     | Événements économiques marquants (crises, bulles, etc.)  |
 
 ## Les 3 outils MCP
 
@@ -56,11 +69,13 @@ source .venv/bin/activate
 pip install "mcp[cli]"
 ```
 
-### 3. Créer la base de données de démo
+### 3. Créer la base de données
 
 ```bash
 python create_db.py
 ```
+
+Ce script télécharge automatiquement les CSV depuis GitHub et crée `housing.db`.
 
 ## Test avec MCP Inspector
 
@@ -74,9 +89,17 @@ Puis dans l'Inspector (http://localhost:6274) :
 
 1. **Tools tab** → vérifier que `list_tables`, `describe_schema`, `run_query` apparaissent
 2. Exécuter `list_tables` → voir les 4 tables
-3. Exécuter `describe_schema` avec `table_name: "orders"` → voir le schéma
-4. Exécuter `run_query` avec `sql: "SELECT * FROM customers LIMIT 3"` → voir les résultats
-5. Tester la sécurité : `run_query` avec `sql: "DROP TABLE customers"` → doit être rejeté
+3. Exécuter `describe_schema` avec `table_name: "national_index"` → voir le schéma
+4. Exécuter `run_query` avec `sql: "SELECT * FROM national_index ORDER BY date DESC LIMIT 5"` → voir les résultats
+5. Tester la sécurité : `run_query` avec `sql: "DROP TABLE cities"` → doit être rejeté
+
+## Tests automatisés
+
+```bash
+python test_server.py
+```
+
+15 tests couvrant : list_tables, describe_schema (valide + invalide), run_query (SELECT, JOIN, CTE), événements de marché, sécurité (DROP, DELETE, INSERT, UPDATE bloqués), edge cases `is_safe_query`.
 
 ## Connexion à Claude Desktop
 
@@ -97,8 +120,8 @@ Ajouter dans `claude_desktop_config.json` :
 
 Redémarrer Claude Desktop, puis demander :
 - *"Quelles tables sont dans la base ?"*
-- *"Montre-moi les 5 clients les plus récents"*
-- *"Quel est le chiffre d'affaires par catégorie de produit ?"*
+- *"Comment les prix immobiliers ont-ils évolué depuis 2008 ?"*
+- *"Quelle ville a connu la plus forte hausse entre 2020 et 2023 ?"*
 
 ## Connexion à Gemini CLI
 
@@ -119,7 +142,7 @@ Ajouter dans `~/.gemini/settings.json` :
 
 Le serveur applique les principes de sécurité du cours (slide 68) :
 
-- **Connexion lecture seule** : `sqlite3.connect("file:demo.db?mode=ro", uri=True)`
+- **Connexion lecture seule** : `sqlite3.connect("file:housing.db?mode=ro", uri=True)`
 - **Validation des requêtes** : seuls `SELECT` et `WITH` sont autorisés comme premier mot-clé
 - **Liste noire explicite** : DROP, DELETE, INSERT, UPDATE, ALTER, CREATE, ATTACH, DETACH...
 - **Pas de print() sur stdout** : stdout est le transport MCP (slide 73)
@@ -128,26 +151,39 @@ Le serveur applique les principes de sécurité du cours (slide 68) :
 ## Exemples de requêtes que l'agent peut exécuter
 
 ```sql
--- Chiffre d'affaires total par client
-SELECT c.first_name, c.last_name, SUM(o.total) as ca_total
-FROM customers c
-JOIN orders o ON c.id = o.customer_id
-WHERE o.status != 'cancelled'
-GROUP BY c.id
-ORDER BY ca_total DESC;
+-- Évolution annuelle des prix nationaux
+SELECT year, ROUND(AVG(index_value), 2) as avg_index, ROUND(AVG(yoy_change), 2) as avg_yoy
+FROM national_index
+GROUP BY year
+ORDER BY year;
 
--- Produits les plus commandés
-SELECT p.name, p.category, SUM(oi.quantity) as total_vendu
-FROM products p
-JOIN order_items oi ON p.id = oi.product_id
-GROUP BY p.id
-ORDER BY total_vendu DESC;
+-- Top 5 des villes avec le plus haut indice (dernière date disponible)
+SELECT c.name, c.state_code, cp.index_value, cp.date
+FROM city_prices cp
+JOIN cities c ON c.id = cp.city_id
+WHERE cp.date = (SELECT MAX(date) FROM city_prices)
+ORDER BY cp.index_value DESC
+LIMIT 5;
 
--- Commandes en attente avec détails client
-SELECT o.id, c.first_name, c.last_name, o.order_date, o.total
-FROM orders o
-JOIN customers c ON o.customer_id = c.id
-WHERE o.status = 'pending';
+-- Impact de la crise 2008 : prix avant et après par ville
+WITH before AS (
+    SELECT city_id, AVG(index_value) as avg_before
+    FROM city_prices WHERE year = 2006 GROUP BY city_id
+),
+after AS (
+    SELECT city_id, AVG(index_value) as avg_after
+    FROM city_prices WHERE year = 2012 GROUP BY city_id
+)
+SELECT c.name, ROUND(b.avg_before, 2) as prix_2006,
+       ROUND(a.avg_after, 2) as prix_2012,
+       ROUND((a.avg_after - b.avg_before) / b.avg_before * 100, 2) as variation_pct
+FROM before b
+JOIN after a ON b.city_id = a.city_id
+JOIN cities c ON c.id = b.city_id
+ORDER BY variation_pct;
+
+-- Événements économiques et leur contexte
+SELECT date, event_name, description FROM market_events ORDER BY date;
 ```
 
 ## Auteurs

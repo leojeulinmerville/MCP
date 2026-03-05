@@ -1,10 +1,15 @@
 """
-Data Query Builder — Serveur MCP pour interagir avec une base SQLite.
+Data Query Builder — Serveur MCP pour interroger le Case-Shiller House Price Index.
+
+Base de données : S&P/Case-Shiller U.S. National Home Price Index
+  - Données nationales mensuelles depuis 1975 (595 mois)
+  - Données par ville pour 20 métropoles US depuis 1987
+  - Événements économiques marquants pour contexte
 
 Ce serveur expose 3 outils MCP via FastMCP :
-  - list_tables   : lister toutes les tables de la base
-  - describe_schema : décrire le schéma complet d'une table (colonnes, types, contraintes)
-  - run_query     : exécuter une requête SQL SELECT (lecture seule)
+  - list_tables    : lister toutes les tables de la base
+  - describe_schema : décrire le schéma d'une table (colonnes, types, FK)
+  - run_query      : exécuter une requête SQL SELECT (lecture seule)
 
 Et 1 ressource :
   - info://server  : métadonnées du serveur
@@ -27,7 +32,7 @@ from mcp.server.fastmcp import FastMCP
 
 # ── Configuration ───────────────────────────────────────────────
 
-DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "demo.db")
+DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "housing.db")
 
 mcp = FastMCP("data-query-builder")
 
@@ -79,10 +84,16 @@ def is_safe_query(sql: str) -> bool:
 @mcp.tool()
 def list_tables() -> str:
     """
-    Liste toutes les tables de la base de données avec leur nombre de lignes.
+    Liste toutes les tables de la base de données immobilière (Case-Shiller Index).
 
     Utilise cet outil EN PREMIER pour découvrir quelles tables existent
     avant de construire une requête SQL. Ne prend aucun paramètre.
+
+    La base contient des données sur les prix immobiliers US :
+      - cities : les 20 métropoles du Case-Shiller Index
+      - national_index : indice national mensuel depuis 1975 (avec variation YoY)
+      - city_prices : indice mensuel par ville depuis 1987
+      - market_events : événements économiques marquants (crises, bulles, etc.)
 
     Retourne un tableau formaté avec le nom de chaque table et son nombre de lignes.
     """
@@ -117,7 +128,7 @@ def describe_schema(table_name: str) -> str:
     spécifique avant d'écrire une requête SQL. Donne le nom exact de la table.
 
     Args:
-        table_name: Le nom exact de la table à décrire (ex: "customers", "orders").
+        table_name: Le nom exact de la table à décrire (ex: "cities", "national_index", "city_prices", "market_events").
                     DOIT correspondre exactement à un nom retourné par list_tables.
 
     Retourne le schéma détaillé de la table avec colonnes, types, contraintes
@@ -205,8 +216,9 @@ def run_query(sql: str) -> str:
     Args:
         sql: La requête SQL SELECT à exécuter. DOIT commencer par SELECT ou WITH.
              Exemples valides :
-               - "SELECT * FROM customers LIMIT 5"
-               - "SELECT c.first_name, COUNT(o.id) FROM customers c JOIN orders o ON c.id = o.customer_id GROUP BY c.id"
+               - "SELECT * FROM national_index ORDER BY date DESC LIMIT 10"
+               - "SELECT c.name, cp.date, cp.index_value FROM city_prices cp JOIN cities c ON c.id = cp.city_id WHERE c.name = 'Miami' ORDER BY cp.date DESC LIMIT 5"
+               - "SELECT year, AVG(index_value) as avg_index FROM national_index GROUP BY year ORDER BY year"
 
     Retourne les résultats sous forme de tableau formaté, ou un message d'erreur
     si la requête est invalide ou échoue.
@@ -273,7 +285,7 @@ def server_info() -> str:
         {
             "name": "data-query-builder",
             "version": "1.0.0",
-            "description": "Serveur MCP pour interroger une base SQLite via des requêtes SQL",
+            "description": "Serveur MCP pour interroger le Case-Shiller House Price Index (prix immobiliers US)",
             "tools": ["list_tables", "describe_schema", "run_query"],
             "database": os.path.basename(DB_PATH),
             "security": "Lecture seule — les requêtes d'écriture sont bloquées",
