@@ -39,6 +39,16 @@ uv venv
 uv pip install "mcp[cli]"
 ```
 
+### Visualization extras
+
+Install plotting support:
+
+```powershell
+uv pip install matplotlib
+```
+
+If `matplotlib` is not installed, visualization tools return a JSON error with this install hint.
+
 ## 3 Run in MCP Inspector
 
 From repository root:
