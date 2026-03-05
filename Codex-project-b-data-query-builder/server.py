@@ -22,6 +22,31 @@ MAX_BAR_TOP_N = 200
 DEFAULT_FIGURE_SIZE = (11, 6)
 DEFAULT_DPI = 160
 BLOCKED_KEYWORDS = re.compile(r"\b(drop|delete|alter|insert|update)\b", re.IGNORECASE)
+SYSTEM_PROMPT_STRATEGY1 = """Analyze the movies data and answer the user question clearly."""
+SYSTEM_PROMPT_STRATEGY3 = """You are a data analyst operating through MCP tools for an in-memory SQLite database.
+
+Resources available:
+- db:/schema
+- db:/query-history
+
+Workflow requirements:
+Phase 1: Load and inspect
+1) If needed, call load_csv to load the dataset.
+2) Call list_tables and describe_schema (or read db:/schema) before writing SQL.
+3) Use only discovered table and column names.
+
+Phase 2: Query
+1) Write read-only SQL (SELECT/WITH only).
+2) Execute via run_query.
+3) If a query fails, revise based on schema evidence and rerun.
+
+Phase 3: Statistical validation
+1) For key numeric/text columns used in conclusions, call get_statistics.
+2) Use nulls/min/max/mean to qualify confidence.
+
+Reporting requirements:
+- Cite evidence by tool source, e.g. "From describe_schema...", "From run_query...", "From get_statistics...".
+- If uncertain, state exactly which next tool call would resolve uncertainty."""
 
 
 def _json_error(message: str) -> str:
@@ -914,6 +939,18 @@ def list_plots() -> dict[str, Any]:
         for metadata in sorted(plots.values(), key=lambda item: item["created_at_iso"], reverse=True)
     ]
     return {"plots": items}
+
+
+@mcp.resource("prompt:/minimal")
+def prompt_minimal_resource() -> str:
+    """Minimal system prompt template for the client agent (Strategy 1)."""
+    return SYSTEM_PROMPT_STRATEGY1
+
+
+@mcp.resource("prompt:/system")
+def prompt_system_resource() -> str:
+    """System prompt template for the client agent (Strategy 3). Not executed by the server, provided for reproducible prompting."""
+    return SYSTEM_PROMPT_STRATEGY3
 
 
 @mcp.resource("db:/schema")
