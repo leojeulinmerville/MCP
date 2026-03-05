@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "data-query-builder": {
+      "command": "C:\\Users\\jerem\\.venv\\Scripts\\python.exe",
+      "args": [
+        "C:\\Users\\jerem\\data-query-builder\\server.py"
+      ]
+    }
+  }
+}
