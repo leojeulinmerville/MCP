@@ -132,3 +132,27 @@ No other global state is required.
   - `run_query` returns `{"error": "Only single SELECT/WITH queries are allowed; mutation keywords are blocked."}`.
 - SQLite runtime errors:
   - Any tool catches `sqlite3.Error` and returns readable JSON error messages without crashing the server.
+
+## 6) Test Scenarios and Measurement Plan
+
+The workshop evaluation uses three scenarios aligned with the README:
+
+1. Highest revenue region by quarter
+- Expected sequence: `load_csv` -> `describe_schema` -> `run_query`
+- Record: observed tool sequence, SQL executed, result summary.
+
+2. Average price by product category
+- Expected sequence: `list_tables` -> `describe_schema` -> `run_query`
+- Record: observed tool sequence, SQL executed, result summary.
+
+3. Column quality checks (quantity and price)
+- Expected sequence: `list_tables` -> `get_statistics(quantity)` -> `get_statistics(price)` -> `db:/query-history`
+- Record: observed tool sequence and result summary.
+
+Measurement artifacts to capture:
+- With tools vs without tools: accuracy, specificity, completeness, confidence, latency.
+- Prompting strategy comparison (Strategy 1 minimal vs Strategy 3 expert):
+  - number of tool calls,
+  - planning behavior,
+  - synthesis quality,
+  - errors and repair behavior.
