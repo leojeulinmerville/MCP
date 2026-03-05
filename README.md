@@ -1,6 +1,6 @@
 # Build Your First MCP Server in Python (FastMCP) - Day 1
 
-This project is a minimal MCP server for use with Codex CLI.
+This project is a minimal MCP server for use with Gemini CLI.
 
 ## 1) Verify Python version
 
