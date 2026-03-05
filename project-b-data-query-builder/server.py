@@ -2,6 +2,7 @@ import json
 import re
 import sqlite3
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
@@ -112,18 +113,26 @@ def load_csv(file_path: str, table_name: str) -> str:
     if "\x00" in file_path:
         return _json_error("file_path must not contain null bytes.")
 
+    raw_path = file_path.strip()
+    path_obj = Path(raw_path).expanduser()
+    absolute_path = (Path.cwd() / path_obj).resolve() if not path_obj.is_absolute() else path_obj.resolve()
+
     try:
-        loaded = load_csv_to_table(conn, file_path, table_name.strip())
+        loaded = load_csv_to_table(conn, str(absolute_path), table_name.strip())
         columns = [{"name": name, "type": col_type} for name, col_type in loaded["columns"]]
         return json.dumps(
             {
                 "table_name": loaded["table_name"],
                 "columns": columns,
                 "row_count": loaded["row_count"],
+                "encoding_used": loaded.get("encoding_used"),
+                "replacement_characters_possible": loaded.get(
+                    "replacement_characters_possible", False
+                ),
             }
         )
     except FileNotFoundError:
-        return _json_error(f"CSV file not found: {file_path}")
+        return _json_error(f"CSV file not found: {absolute_path}")
     except ValueError as exc:
         return _json_error(str(exc))
     except sqlite3.Error as exc:

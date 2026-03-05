@@ -88,7 +88,7 @@ Confirm `data-query-builder` is active.
 
 ### 5.1 `load_csv(file_path: str, table_name: str) -> str`
 
-Description: Loads a CSV into a SQLite table with auto-detected column types.
+Description: Loads a CSV into a SQLite table with auto-detected column types. Relative paths are resolved from the server working directory.
 
 Parameters:
 
@@ -98,7 +98,7 @@ Parameters:
 | `table_name` | `str` | yes | Destination table name |
 
 Return format summary:
-- Success JSON keys: `table_name`, `columns` (list of `{name,type}`), `row_count`
+- Success JSON keys: `table_name`, `columns` (list of `{name,type}`), `row_count`, `encoding_used`, `replacement_characters_possible`
 - Error JSON key: `error`
 
 Usage example:
@@ -118,7 +118,9 @@ Usage example:
 {
   "table_name": "sales",
   "columns": [{"name": "quarter", "type": "TEXT"}],
-  "row_count": 10
+  "row_count": 10,
+  "encoding_used": "utf-8-sig",
+  "replacement_characters_possible": false
 }
 ```
 
@@ -325,105 +327,142 @@ Usage example:
 
 - Data is process-local and ephemeral (`:memory:` DB). Restarting the server clears all tables/history.
 - Type inference in `load_csv` is heuristic and based on CSV string values; mixed-type columns may be inferred as `TEXT`.
+- CSV decoding in `load_csv` uses fallback order: `utf-8-sig` -> `utf-8` -> `cp1252` -> `latin-1`.
+- If all preferred decoders fail, loading falls back to `utf-8` with `errors="replace"`; text fields may contain replacement characters.
 - `run_query` rejects any semicolon to avoid multi-statement risks; valid SQL ending with `;` is intentionally blocked.
 - SQL safety checks are keyword-based and conservative; some legitimate advanced SQL patterns may be refused.
 - Query history is in-memory only and not persisted.
 
 ## 8 Testing Scenarios
 
-### Scenario 1: Highest revenue region by quarter
-- English question: "After loading sales data, which region is highest-revenue in each quarter?"
-- Expected tool sequence: `load_csv` -> `describe_schema` -> `run_query`
-- Observed tool sequence (fill after run): `________________________________________`
+### Scenario 1: Highest revenue movie by decade
+- English question: "After loading movies data, which movie has the highest revenue in each decade (vote_count >= 1000)?"
+- Expected tool sequence: `load_csv` -> `describe_schema` -> `run_query` -> `db:/query-history`
+- Observed tool sequence: `load_csv` -> `describe_schema` -> `run_query` -> `db:/query-history`
 - SQL used:
 
 ```sql
-WITH ranked AS (
+WITH base AS (
   SELECT
-    quarter,
-    region,
-    SUM(revenue) AS total_revenue,
-    ROW_NUMBER() OVER (PARTITION BY quarter ORDER BY SUM(revenue) DESC) AS rn
-  FROM sales
-  GROUP BY quarter, region
+    title,
+    CAST(strftime('%Y', release_date) AS INTEGER) AS year,
+    revenue,
+    vote_count
+  FROM movies
+  WHERE release_date IS NOT NULL
+    AND release_date != ''
+    AND strftime('%Y', release_date) IS NOT NULL
+    AND revenue IS NOT NULL
+    AND vote_count IS NOT NULL
+    AND vote_count >= 1000
+),
+ranked AS (
+  SELECT
+    (CAST(year / 10 AS INTEGER) * 10) AS decade,
+    title,
+    revenue,
+    vote_count,
+    ROW_NUMBER() OVER (
+      PARTITION BY (CAST(year / 10 AS INTEGER) * 10)
+      ORDER BY revenue DESC, vote_count DESC
+    ) AS rn
+  FROM base
 )
-SELECT quarter, region, total_revenue
+SELECT decade, title, revenue, vote_count
 FROM ranked
 WHERE rn = 1
-ORDER BY quarter;
+ORDER BY decade
 ```
 
-- Result summary (fill after run): `________________________________________`
+- Result summary: Decade winners (1930s to 2010s) were: Snow White and the Seven Dwarfs, Bambi, Alice in Wonderland, One Hundred and One Dalmatians, Star Wars, E.T. the Extra-Terrestrial, Titanic, Avatar, and Star Wars: The Force Awakens. The highest among these was Avatar (2000s) with revenue 2,787,965,087.
 
-### Scenario 2: Average price by product category
-- English question: "What is the average price per product category?"
+### Scenario 2: Average rating by decade
+- English question: "Among movies with vote_count >= 1000, what is the average vote_average by decade?"
 - Expected tool sequence: `list_tables` -> `describe_schema` -> `run_query`
-- Observed tool sequence (fill after run): `________________________________________`
+- Observed tool sequence: `list_tables` -> `describe_schema` -> `run_query`
 - SQL used:
 
 ```sql
-SELECT product_category, AVG(price) AS avg_price
-FROM sales
-GROUP BY product_category
-ORDER BY avg_price DESC;
+WITH base AS (
+  SELECT
+    CAST(strftime('%Y', release_date) AS INTEGER) AS year,
+    vote_average,
+    vote_count
+  FROM movies
+  WHERE release_date IS NOT NULL
+    AND release_date != ''
+    AND strftime('%Y', release_date) IS NOT NULL
+    AND vote_average IS NOT NULL
+    AND vote_count IS NOT NULL
+    AND vote_count >= 1000
+)
+SELECT
+  (CAST(year / 10 AS INTEGER) * 10) AS decade,
+  ROUND(AVG(vote_average), 3) AS avg_vote_average,
+  COUNT(*) AS movie_count
+FROM base
+GROUP BY decade
+ORDER BY avg_vote_average DESC
 ```
 
-- Result summary (fill after run): `________________________________________`
+- Result summary: The highest-decade averages were 1960s (7.650), 1970s (7.638), and 1980s (7.439); the 2010s average was 6.561 across 527 movies. All returned rows fit within the limit (9 decades total).
 
 ### Scenario 3: Quality checks on numeric columns
-- English question: "What are nulls/min/max/mean for quantity and price after load?"
-- Expected tool sequence: `list_tables` -> `get_statistics(quantity)` -> `get_statistics(price)` -> `db:/query-history`
-- Observed tool sequence (fill after run): `________________________________________`
+- English question: "What are nulls/min/max/mean for revenue and vote_average after load?"
+- Expected tool sequence: `list_tables` -> `get_statistics(revenue)` -> `get_statistics(vote_average)` -> `db:/query-history`
+- Observed tool sequence: `list_tables` -> `get_statistics(revenue)` -> `get_statistics(vote_average)` -> `db:/query-history`
 - SQL used: `N/A (statistics tool)`
-- Result summary (fill after run): `________________________________________`
+- Result summary: `revenue` stats were count_non_null=45460, nulls=6, min=0, max=2787965087, mean=11209348.5393; `vote_average` stats were count_non_null=45460, nulls=6, min=0.0, max=10.0, mean=5.6182. Reading `db:/query-history` after these calls confirmed the latest logged SQL remained the prior `run_query` entry because `get_statistics` does not append query history.
 
 ## 9 With Tools vs Without Tools
 
-### Complex scenario text
-"Given quarterly multi-region sales data with category-level prices and quantities, identify the top region per quarter, compute average price per category, and report confidence qualifiers (nulls/range/mean) for the metrics used in the final recommendation."
+### Question used in both runs
+"Top 5 movies by revenue among movies with vote_count >= 1000."
 
 ### Small data sample for a no-tools run
 Paste this into the model prompt when testing without MCP tools:
 
 ```csv
-quarter,region,product_category,quantity,price,revenue
-Q1,North,Electronics,120,199.99,23998.8
-Q1,South,Furniture,80,349.50,27960.0
-Q2,North,Electronics,95,219.99,20899.05
-Q2,South,Furniture,70,329.00,23030.0
-Q3,North,Electronics,130,205.00,26650.0
-Q4,West,Office Supplies,300,13.95,4185.0
+title,revenue,vote_count
+Avatar,2787965087,12114
+Star Wars: The Force Awakens,2068223624,7993
+Titanic,1845034188,7770
+The Avengers,1519557910,12000
+Jurassic World,1513528810,8842
+Furious 7,1506249360,4176
+Minions,1156730962,4729
+Paranormal Activity 3,207039844,848
 ```
 
-### Answer placeholders
-- Without tools answer (paste):
+### Answers
+- Without tools answer:
 
 ```text
-[PASTE WITHOUT-TOOLS ANSWER HERE]
+From the pasted sample (filtering vote_count >= 1000), the top 5 by revenue are: Avatar (2787965087), Star Wars: The Force Awakens (2068223624), Titanic (1845034188), The Avengers (1519557910), and Jurassic World (1513528810). Paranormal Activity 3 is excluded because vote_count is 848.
 ```
 
-- With tools answer (paste):
+- With tools answer:
 
 ```text
-[PASTE WITH-TOOLS ANSWER HERE]
+From load_csv + run_query on full movies.csv (45466 rows), the top 5 movies by revenue with vote_count >= 1000 are: Avatar (2787965087), Star Wars: The Force Awakens (2068223624), Titanic (1845034188), The Avengers (1519557910), and Jurassic World (1513528810).
 ```
 
-### Comparison table (fill after both runs)
+### Comparison table
 
 | Dimension | Without tools | With tools |
 |---|---|---|
-| Accuracy |  |  |
-| Specificity |  |  |
-| Completeness |  |  |
-| Confidence |  |  |
-| Latency |  |  |
+| Accuracy | Correct for pasted sample only | Correct on full dataset with tool-verified SQL output |
+| Specificity | Limited to 8 provided rows | Exact top 5 over 45466 rows with explicit filter |
+| Completeness | Cannot generalize beyond sample | Full-data answer with row-count-backed scope |
+| Confidence | Medium (manual sorting) | High (database execution + typed schema) |
+| Latency | Very low | Low (extra tool-call overhead) |
 
 ## 10 Prompting Strategy Comparison
 
 ### Strategy 1 minimal prompt
 
 ```text
-Analyze the sales data and answer the user question clearly.
+Analyze the movies data and answer the user question clearly.
 ```
 
 ### Strategy 3 expert system prompt (project-specific)
@@ -451,15 +490,17 @@ Reporting requirements:
 - If uncertain, state exactly which next tool call would resolve uncertainty.
 ```
 
-### Strategy comparison log (fill during workshop)
+Question used for both strategies: "Top 5 movies by revenue among movies with vote_count >= 1000."
+
+### Strategy comparison log
 
 | Strategy | Number of tool calls | Planning behavior | Synthesis quality | Errors/repairs |
 |---|---|---|---|---|
-| Strategy 1 minimal |  |  |  |  |
-| Strategy 3 expert |  |  |  |  |
+| Strategy 1 minimal | 3 (`load_csv`, `run_query`, `run_query`) | No explicit planning; queried immediately | Good after repair, but initial column guess was wrong | `no such column: movie_title`, then repaired to `title` |
+| Strategy 3 expert | 3 (`load_csv`, `describe_schema`, `run_query`) | Explicit schema reconnaissance before SQL | High on first pass; schema-grounded query | None |
 
 ### Observations notes
 
 ```text
-[Record qualitative observations here: when the model planned, when it guessed, and where tool evidence improved output quality.]
+When schema was skipped (Strategy 1), the first query guessed movie_title and failed; one repair was needed before producing the same top-5 result. With schema-first behavior (Strategy 3), the correct title/revenue/vote_count columns were confirmed up front and the first query succeeded directly.
 ```

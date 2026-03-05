@@ -31,18 +31,38 @@ def _cast(value: str, col_type: str):
     if not value:
         return None
     if col_type == "INTEGER":
-        return int(value)
+        try:
+            return int(value)
+        except ValueError:
+            return value
     if col_type == "REAL":
-        return float(value)
+        try:
+            return float(value)
+        except ValueError:
+            return value
     return value
+
+
+def _read_csv_with_fallback(file_path: str) -> tuple[list[dict[str, str]], str, bool]:
+    """Read CSV rows using a robust encoding fallback strategy."""
+    encodings = ("utf-8-sig", "utf-8", "cp1252", "latin-1")
+    for encoding in encodings:
+        try:
+            with open(file_path, "r", encoding=encoding, newline="") as f:
+                reader = csv.DictReader(f)
+                return list(reader), encoding, False
+        except UnicodeDecodeError:
+            continue
+
+    with open(file_path, "r", encoding="utf-8", errors="replace", newline="") as f:
+        reader = csv.DictReader(f)
+        return list(reader), "utf-8 (errors=replace)", True
 
 
 def load_csv_to_table(conn, file_path: str, table_name: str) -> dict:
     """Load a CSV into a SQLite table. Auto-detects column types.
     Returns: {"table_name": str, "columns": [...], "row_count": int}"""
-    with open(file_path, "r") as f:
-        reader = csv.DictReader(f)
-        rows = list(reader)
+    rows, encoding_used, used_replacement = _read_csv_with_fallback(file_path)
     if not rows:
         raise ValueError(f"CSV file is empty: {file_path}")
 
@@ -65,4 +85,10 @@ def load_csv_to_table(conn, file_path: str, table_name: str) -> dict:
         values = [_cast(row[c], columns[c]) for c in columns]
         conn.execute(f'INSERT INTO "{table_name}" ({col_names}) VALUES ({placeholders})', values)
     conn.commit()
-    return {"table_name": table_name, "columns": list(columns.items()), "row_count": len(rows)}
+    return {
+        "table_name": table_name,
+        "columns": list(columns.items()),
+        "row_count": len(rows),
+        "encoding_used": encoding_used,
+        "replacement_characters_possible": used_replacement,
+    }
