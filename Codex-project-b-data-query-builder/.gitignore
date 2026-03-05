@@ -1,0 +1,4 @@
+plots/
+plots/*.png
+project-b-data-query-builder/plots/
+project-b-data-query-builder/plots/*.png
