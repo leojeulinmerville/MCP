@@ -1,115 +1,89 @@
-# Build Your First MCP Server in Python (FastMCP) - Day 1
+# FastMCP Training Projects
 
-This project is a minimal MCP server for use with Gemini CLI.
+Ce dépôt regroupe les projets réalisés lors de la formation sur le Model Context Protocol (MCP) avec le framework Python **FastMCP**.
 
-## 1) Verify Python version
+---
 
-Python must be `>= 3.10`.
+## Day 1 : Build Your First MCP Server
+
+Ce projet est un serveur MCP minimaliste conçu pour comprendre les bases de FastMCP et l'interaction avec des clients comme MCP Inspector et Gemini CLI.
+
+### 1. Prérequis & Installation
+
+Python doit être en version `>= 3.10`.
 
 ```powershell
+# Vérifier la version de Python
 python --version
 ```
 
-## 2) Install uv
+**Installation de `uv` (Gestionnaire de paquets ultra-rapide)** :
+*   **Windows PowerShell** :
+    ```powershell
+    powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+    ```
+*   **macOS/Linux** :
+    ```bash
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+    ```
 
-Windows PowerShell:
-
+**Création de l'environnement virtuel** :
 ```powershell
-powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
-```
-
-Optional macOS/Linux:
-
-```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
-```
-
-## 3) Create venv and install dependencies
-
-From the project folder:
-
-```powershell
+# Depuis le dossier du projet Day 1
 uv venv
 .\.venv\Scripts\activate
 uv pip install "mcp[cli]"
 ```
 
-Optional macOS/Linux activation:
+### 2. Tester avec MCP Inspector (Interface Web)
 
-```bash
-source .venv/bin/activate
-```
-
-## 4) Test with MCP Inspector
-
+Lancez l'interface de test visuelle :
 ```powershell
 mcp dev server.py
 ```
+Vérifiez que les outils `hello`, `add`, et `word_count` fonctionnent correctement, ainsi que la ressource `info:/server`.
 
-In MCP Inspector, verify:
-- Tools include `hello`, `add`, `word_count`
-- Resource includes `info:/server`
-- `hello` returns `Hello, <name>! The server is working.`
-- `add` returns `<a> + <b> = <sum>`
-- `word_count` returns `Words: X, Chars: Y, Sentences: Z`
+### 3. Connecter depuis Gemini CLI (stdio MCP)
 
-## 5) Connect from Codex CLI (stdio MCP)
-
-Make sure Codex CLI is installed and available as `codex`.
-
-Add the MCP server:
-
-```powershell
-codex mcp add my-server -- "<ABS_PATH_TO_PYTHON_EXE>" "<ABS_PATH_TO_server.py>"
+Ajoutez le serveur à Gemini CLI en insérant cette configuration dans `~/.gemini/settings.json` (ou `C:\Users\VotreNom\.gemini\settings.json` sous Windows) :
+```json
+{
+  "mcpServers": {
+    "my-server": {
+      "command": "C:/Users/you/my-mcp-server/.venv/Scripts/python.exe",
+      "args": [
+        "C:/Users/you/my-mcp-server/server.py"
+      ]
+    }
+  }
+}
 ```
 
-Windows example:
+*   Lancez Gemini CLI et vérifiez que `my-server` est activé et que les outils sont disponibles.
+*   **Prompt d'exemple :** *"Utilise l'outil MCP `hello` avec le nom 'Alice', puis l'outil `word_count` avec la phrase 'Hello world'."*
 
-```powershell
-codex mcp add my-server -- "C:\Users\you\my-mcp-server\.venv\Scripts\python.exe" "C:\Users\you\my-mcp-server\server.py"
-```
+---
 
-Placeholder notes:
-- `<ABS_PATH_TO_PYTHON_EXE>` is your virtual environment interpreter path
-- `<ABS_PATH_TO_server.py>` is the absolute path to this `server.py`
+## Day 2 : Data Query Builder (Project B)
 
-Confirm in Codex:
-- Start Codex with `codex`
-- Run `/mcp` in the TUI
-- Confirm `my-server` is listed and enabled
+Ce projet est la mise en pratique avancée des concepts MCP. C'est un **assistant de base de données intelligent** qui permet de charger des fichiers CSV, d'inspecter les schémas, de générer des requêtes SQL et de créer des visualisations HTML interactives, le tout orchestré par **Gemini CLI**.
 
-Example prompts in Codex:
-- `Use the my-server MCP tool hello with name "class".`
-- `Use the my-server MCP tool word_count on: "Hello world. This is Day 1!"`
+### Setup (Environnement Anaconda)
 
-## 6) Common issues
-
-- Wrong Python interpreter causes `ModuleNotFoundError: No module named 'mcp'`
-- Paths must be absolute (do not use relative paths in `codex mcp add`)
-- If tools/resources do not refresh, run `codex mcp list`, then restart Codex after MCP config changes
-
-
-# Data Query Builder (Project B): Day 2
-
-## Overview
-Ce projet est un serveur d'outils Model Context Protocol (MCP) développé avec `FastMCP` en Python. Il agit comme un assistant de base de données intelligent, permettant de charger des fichiers CSV bruts, de les nettoyer, d'inspecter les schémas, de générer des requêtes SQL et de visualiser les résultats sous forme de graphiques HTML. Il a été conçu et certifié pour fonctionner avec **Gemini CLI**.
-
-## Setup
-
-Pour installer et exécuter ce projet localement, nous recommandons l'utilisation d'Anaconda (`conda`) ou d'un environnement virtuel Python standard (`venv`).
+Pour Project B, nous recommandons l'utilisation d'Anaconda (`conda`) :
 
 ```bash
-# 1. Activez votre environnement virtuel (ex: conda)
+# 1. Activez votre environnement virtuel
 conda activate gemini_env
 
 # 2. Installez les dépendances nécessaires
-# Le paquet principal requis est `mcp[cli]` (FastMCP). `sqlite3` et `csv` sont inclus dans la librairie standard.
 pip install mcp[cli]
+# sqlite3 et csv sont déjà inclus dans Python standard.
 ```
 
-## Gemini CLI Configuration
+### Gemini CLI Configuration
 
-Pour que Gemini puisse communiquer avec ce serveur, ajoutez la configuration suivante dans le fichier `~/.gemini/settings.json` (ou `C:\Users\VotreNom\.gemini\settings.json` sous Windows) :
+Pour que Gemini puisse communiquer avec ce serveur, ajoutez la configuration suivante dans le fichier `~/.gemini/settings.json` (ou `C:\Users\VotreNom\.gemini\settings.json` sous Windows). **Utilisez des chemins absolus !**
 
 ```json
 {
@@ -124,58 +98,94 @@ Pour que Gemini puisse communiquer avec ce serveur, ajoutez la configuration sui
 }
 ```
 
-## System Prompt Recommandé
+### Prompt Système & Contraintes (CRITICAL)
 
-L'utilisation d'un **Prompt Système strict** (Strategy 3: Expert Workflow) est vitale. Vous le trouverez dans le fichier `prompt.txt`. 
-*Assurez-vous de le fournir à Gemini CLI lors de vos interactions pour garantir que l'agent respecte les étapes d'analyse (Phases 1 à 3) et n'hallucine aucune donnée !*
+L'utilisation d'un **Prompt Système strict** (*Strategy 3: Expert Workflow*) est vitale pour ce projet. Le contenu exact à fournir à Gemini se trouve dans le fichier `prompt.txt`. 
 
-## Tools (9 outils)
+**Pourquoi ces contraintes sont-elles importantes ?**
+1.  **Read-Only DB** : Empêche formellement l'agent d'exécuter des requêtes destructives (`DROP`, `DELETE`, `UPDATE`).
+2.  **No Native Local Parsing** : Interdit à Gemini d'utiliser ses propres capacités pour lire le dossier local. Il *doit* utiliser les outils MCP (`load_csv`, `clean_csv`) pour garantir le bon flux d'orchestration.
+3.  **No Hallucination** : Force l'agent à s'appuyer uniquement sur les retours JSON des outils.
+4.  **Usage Intelligent** : Empêche l'agent d'appeler inutilement tous ses outils pour des questions simples.
+
+### Outils Exposés (9 Tools)
 
 | Tool | Paramètres Clés | Description |
 | :--- | :--- | :--- |
 | `preview_table` | `table_name`, `rows` | Affiche un aperçu rapide (head) d'une table sans faire de lourdes requêtes. |
-| `clean_csv` | `input_path`, `output_path` | Lit un CSV, détecte automatiquement son séparateur et écrit une version propre (virgules, UTF-8). |
-| `load_csv` | `file_path`, `table_name` | Charge le contenu d'un CSV (propre) dans une nouvelle table SQLite mémoire. Détecte les types. |
+| `clean_csv` | `input_path`, `out_path` | Lit un CSV, détecte automatiquement son séparateur et écrit une version propre (virgules, UTF-8). |
+| `load_csv` | `file_path`, `table_name` | Charge le contenu d'un CSV dans une table SQLite mémoire et détecte les types. |
 | `list_tables` | *(aucun)* | Liste toutes les tables SQLite actuellement en mémoire avec leur nombre de lignes. |
-| `describe_schema` | *(aucun)* | Renvoie toutes les tables, ainsi que le nom et le type de toutes leurs colonnes. |
-| `get_unique_values` | `table_name`, `column` | Retourne la liste unique/distincte des entrées d'une colonne (parfait pour le requêtage de catégories). |
-| `get_statistics` | `table_name`, `column` | Retourne les statistiques mathématiques de base (Min, Max, Moyenne, Count). |
-| `run_query` | `sql`, `limit` | Exécute des requêtes de lecture (SELECT) complexes, rejette automatiquement (DROP, DELETE, UPDATE). |
-| `visualize_data` | `sql_query`, `chart_type`, `x_column`, `y_column`, `output_html_path` | Exécute une requête et génère un graphique (Chart.js) dans un fichier HTML interactif. |
+| `describe_schema`| *(aucun)* | Renvoie toutes les tables, ainsi que le nom et le type de toutes leurs colonnes. |
+| `get_unique_values`| `table_name`, `column`| Retourne la liste unique des entrées d'une colonne (parfait pour l'analyse catégorielle). |
+| `get_statistics` | `table_name`, `column`| Retourne les statistiques mathématiques de base (Min, Max, Moyenne, Count). |
+| `run_query` | `sql`, `limit` | Exécute des requêtes SQL de lecture (SELECT) complexes. |
+| `visualize_data` | `sql`, `type`, `x`, `y`, `out` | Exécute une requête et génère un graphique (Chart.js) dans un fichier HTML interactif externe. |
 
-## Resources
+*(Le projet expose également les ressources `db://schema` et `db://query-history`)*
 
-*   `db://schema` : Expose le schéma de la base de données actuelle au format JSON.
-*   `db://query-history` : Expose l'historique complet de toutes les requêtes exécutées durant la session courante.
+### 4 Cas d'Usage Pratiques (avec `movies.csv`)
 
-## Limitations et Recommandations (Negative Constraints)
+Testez la puissance de l'orchestration en envoyant ces prompts complets à Gemini CLI après avoir chargé le prompt système :
 
-Pour des raisons de sécurité et de performances, des limites strictes doivent être imposées dans le prompt donné à Gemini CLI :
-1.  **Read-Only DB** : L'outil `run_query` et la génération de graphiques bloquent explicitement l'écriture SQL. Pensez à l'exiger aussi dans le prompt.
-2.  **Usage Conditionnel** : L'agent ne doit **pas** se sentir obligé d'utiliser tous les outils pour des tâches simples.
-3.  **No Native Local Parsing** : Gemini a tendance à parser lui-même le dossier de travail. Il est impératif d'interdire cette pratique (via les negative prompts) pour garantir le flux d'orchestration de nos outils `clean_csv` et `load_csv`.
-4.  **No Hallucination** : Le prompt doit préciser que l'agent ne doit s'appuyer **que** sur les données sortant des JSON renvoyés par les outils.
+**Cas 1 : Ingestion Sécurisée et Aperçu (Discovery)**
+> *"Je veux analyser le fichier `movies.csv`. Commence par le nettoyer pour être sûr du format, puis charge-le dans une table nommée `movies`. Affiche-moi ensuite un aperçu des 5 premières lignes pour vérifier que tout est correct."*
 
-## 4 Cas d'Usage (Utilisant `sample_data.csv`)
+*Action de l'agent : `clean_csv` -> `load_csv` -> `preview_table`*
 
-Voici 4 exemples de requêtes (cas d'usage réels) que vous pouvez envoyer à Gemini CLI, conçues pour déclencher l'orchestration avancée des outils du serveur MCP avec le fichier `sample_data.csv` (qui contient des données de ventes) :
+Résultat attendu (extrait) :
+```
+| title       | release_date | vote_average | revenue     | runtime |
+|-------------|--------------|--------------|-------------|---------|
+| Toy Story   | 1995-10-30   | 7.7          | 373554033   | 81.0    |
+| Jumanji     | 1995-12-15   | 6.9          | 262797249   | 104.0   |
+| Heat        | 1995-12-15   | 7.7          | 187436818   | 170.0   |
+| Se7en       | 1995-09-22   | 8.1          | 327311859   | 127.0   |
+| Braveheart  | 1995-05-24   | 7.7          | 210000000   | 177.0   |
+```
 
-### Cas 1 : Ingestion Sécurisée et Aperçu (Discovery)
-**Prompt utilisateur :**  
-> *"Je veux analyser mon fichier `sample_data.csv`. Commence par le nettoyer pour être sûr du format, puis charge-le dans une table nommée `sales`. Affiche-moi ensuite un aperçu des 3 premières lignes pour vérifier que tout est correct."*
-**Comportement attendu :** Gemini appelle `clean_csv` -> `load_csv` -> `preview_table`.
+**Cas 2 : Analyse Catégorielle Exploratoire (Analysis)**
+> *"Dans la table `movies`, quelles sont les langues originales disponibles ? Donne-moi aussi la liste des statuts de sortie uniques (colonne `status`)."*
 
-### Cas 2 : Analyse Catégorielle Exploratoire (Analysis)
-**Prompt utilisateur :**  
-> *"Dans la table `sales` que nous venons de charger, quelles sont les régions uniques ? et quelles sont les catégories uniques de produits ?"*
-**Comportement attendu :** Gemini vérifie le schéma si nécessaire, puis appelle `get_unique_values` pour la colonne "region" et `get_unique_values` pour la colonne "category".
+*Action de l'agent : `describe_schema` (optionnel) -> `get_unique_values` (original_language) -> `get_unique_values` (status)*
 
-### Cas 3 : Statistiques Mathématiques Détaillées (Statistics)
-**Prompt utilisateur :**  
-> *"Donne-moi un résumé statistique complet du prix (price) et de la quantité (quantity) dans la table `sales`. Quel est le prix moyen et la quantité totale en stock (MAX) ?"*
-**Comportement attendu :** L'agent utilise intelligemment l'outil `get_statistics` sur les deux colonnes numériques au lieu d'écrire de multiples requêtes SQL manuelles.
+Résultat attendu :
+```
+original_language (top valeurs) : en, fr, it, de, zh, ja, es, ko, ...
+status (valeurs uniques) : Released, Rumored, Post Production, In Production, Planned, Canceled
+```
 
-### Cas 4 : Requête Complexe et Visualisation Interactive (Synthesis & Visualization)
-**Prompt utilisateur :**  
-> *"Écris une requête SQL pour obtenir le revenu total (price * quantity) par catégorie dans la table `sales`. Ensuite, génère un graphique en barres (bar chart) de ces revenus et sauvegarde-le sous `revenue_chart.html`."*
-**Comportement attendu :** L'agent réfléchit à la requête, puis appelle directement `visualize_data` en lui passant la requête SQL `SELECT category, sum(price*quantity) as revenue...`, `bar`, `category`, `revenue`, et le chemin du fichier de sortie. Il vous répondra avec un lien vers le fichier HTML interactif.
+**Cas 3 : Statistiques Mathématiques Détaillées (Statistics)**
+> *"Donne-moi un résumé statistique complet de la note moyenne (vote_average) et du revenu (revenue) dans la table `movies`. Quel est le film le mieux noté et le revenu maximum enregistré ?"*
+
+*Action de l'agent : `get_statistics` (vote_average) -> `get_statistics` (revenue)*
+
+Résultat attendu :
+```
+vote_average → Min: 0.0 | Max: 10.0 | Moyenne: 5.62 | Count: 45573
+revenue      → Min: 0   | Max: 2787965087 | Moyenne: 11462442 | Count: 45573
+```
+
+**Cas 4 : Requête Complexe et Visualisation Interactive (Synthesis & Viz)**
+> *"Écris une requête SQL pour obtenir les 10 films anglais avec le plus haut revenu dans la table `movies` (uniquement ceux dont le revenu est supérieur à 0). Génère ensuite un graphique en barres horizontales et sauvegarde-le sous `C:/votre/chemin/top10_movies_revenue.html`."*
+
+*Action de l'agent : `run_query` -> `visualize_data`*
+
+Résultat attendu (requête SQL générée) :
+```sql
+SELECT title, revenue
+FROM movies
+WHERE original_language = 'en' AND revenue > 0
+ORDER BY revenue DESC
+LIMIT 10;
+```
+```
+| title                              | revenue        |
+|------------------------------------|----------------|
+| Avatar                             | 2787965087     |
+| Titanic                            | 1845034188     |
+| The Avengers                       | 1519557910     |
+| The Dark Knight                    | 1004558444     |
+| Star Wars: The Force Awakens       | 936662225      |
+```
+L'agent génère ensuite un fichier `top10_movies_revenue.html` avec un graphique Chart.js interactif.
