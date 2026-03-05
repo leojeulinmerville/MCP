@@ -39,6 +39,16 @@ uv venv
 uv pip install "mcp[cli]"
 ```
 
+### Visualization extras
+
+Install plotting support:
+
+```powershell
+uv pip install matplotlib
+```
+
+If `matplotlib` is not installed, visualization tools return a JSON error with this install hint.
+
 ## 3 Run in MCP Inspector
 
 From repository root:
@@ -470,6 +480,10 @@ Analyze the movies data and answer the user question clearly.
 ```text
 You are a data analyst operating through MCP tools for an in-memory SQLite database.
 
+Resources available:
+- db:/schema
+- db:/query-history
+
 Workflow requirements:
 Phase 1: Load and inspect
 1) If needed, call load_csv to load the dataset.
@@ -488,6 +502,14 @@ Phase 3: Statistical validation
 Reporting requirements:
 - Cite evidence by tool source, e.g. "From describe_schema...", "From run_query...", "From get_statistics...".
 - If uncertain, state exactly which next tool call would resolve uncertainty.
+```
+
+### System prompt in code: read prompt:/system
+
+In Codex TUI, call `read_mcp_resource` with this JSON payload:
+
+```json
+{"server":"data-query-builder","uri":"prompt:/system"}
 ```
 
 Question used for both strategies: "Top 5 movies by revenue among movies with vote_count >= 1000."
